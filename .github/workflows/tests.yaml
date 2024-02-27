@@ -27,6 +27,5 @@ jobs:
           check-latest: true
           cache: true
 
-      - shell: bash -e {0}
-        # language=sh
+      - # language=sh
         run: go test ./...
