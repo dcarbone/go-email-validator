@@ -5,11 +5,20 @@ import (
 	"fmt"
 )
 
+const (
+	LocalPartMaxLength = 64
+	DomainMaxLength    = 64
+)
+
 var (
 	ErrUnexpectedNonGraphicCharacter   = errors.New("unexpected non-graphic ascii character seen")
 	ErrUnexpectedCharacter             = errors.New("unexpected character seen")
 	ErrInvalidUnquotedSequence         = errors.New("character sequence seen that requires quoting")
 	ErrUnexpectedCharactersAfterDomain = fmt.Errorf("%w: after domain", ErrUnexpectedCharacter)
+	ErrZeroLengthLocalPart             = errors.New("zero-length local part")
+	ErrLocalPartTooLong                = errors.New("local part length exceeds 64 characters")
+	ErrZeroLengthDomain                = errors.New("zero-length domain")
+	ErrDomainTooLong                   = errors.New("domain length exceeds 64 characters")
 )
 
 type ParseOptions struct {
@@ -73,10 +82,12 @@ func BuildResult(email string, opts ...OptFunc) (Result, error) {
 
 		inputLen = len(email)
 
-		inLocal   = true
-		inQuote   = false
-		inComment = false
-		inDomain  = false
+		inLocal    = true
+		localDone  = false
+		inQuote    = false
+		inComment  = false
+		inDomain   = false
+		domainDone = false
 
 		res = new(Result)
 	)
@@ -476,22 +487,33 @@ func BuildResult(email string, opts ...OptFunc) (Result, error) {
 		if err != nil {
 			// if error, add to error list.
 			errs = append(errs, err)
-
-			continue
 		}
 
 		// determine what to do with character
 
-		if inLocal {
+		if !localDone {
 			// handle "local" portion
 
 			if inComment {
 				res.Comment = fmt.Sprintf(strstr, res.Comment, chr)
+			} else if inDomain {
+				// handle transition to domain
+				localDone = true
+
+				if dec != 64 {
+					res.Domain = fmt.Sprintf(strstr, res.Domain, chr)
+				}
+				res.Stripped = fmt.Sprintf(strstr, res.Stripped, chr)
 			} else {
 				res.Local = fmt.Sprintf(strstr, res.Local, chr)
 				res.Stripped = fmt.Sprintf(strstr, res.Stripped, chr)
 			}
-		} else if inDomain {
+		} else if !domainDone {
+			// handle "domain" portion
+
+			if !inDomain {
+				domainDone = true
+			}
 			if dec != 64 {
 				res.Domain = fmt.Sprintf(strstr, res.Domain, chr)
 			}
@@ -499,6 +521,18 @@ func BuildResult(email string, opts ...OptFunc) (Result, error) {
 		} else {
 			errs = append(errs, fmt.Errorf("%w: %q at position %d beyond domain", ErrUnexpectedCharactersAfterDomain, chr, i))
 		}
+	}
+
+	// do some final checks
+	if l := len(res.Local); l > LocalPartMaxLength {
+		errs = append(errs, fmt.Errorf("%w: %d", ErrLocalPartTooLong, l))
+	} else if l == 0 {
+		errs = append(errs, ErrZeroLengthLocalPart)
+	}
+	if l := len(res.Domain); l > DomainMaxLength {
+		errs = append(errs, fmt.Errorf("%w: %d", ErrDomainTooLong, l))
+	} else if l == 0 {
+		errs = append(errs, ErrZeroLengthDomain)
 	}
 
 	// return res and any errors seen.

@@ -93,9 +93,9 @@ func TestBuildResult(t *testing.T) {
 		// should produce error
 
 		{
-			label: "missing-local",
+			label: "no-domain",
 			input: "abc.example.com",
-			err:   errors.New("FIXME"),
+			err:   emailvalidator.ErrZeroLengthDomain,
 		},
 		{
 			label: "unquoted-at-in-local",
@@ -125,7 +125,7 @@ func TestBuildResult(t *testing.T) {
 		{
 			label: "bigass-local",
 			input: "1234567890123456789012345678901234567890123456789012345678901234+x@example.com",
-			err:   emailvalidator.ErrUnexpectedCharacter,
+			err:   emailvalidator.ErrLocalPartTooLong,
 		},
 		{
 			label: "underscores-in-domain",
@@ -136,7 +136,7 @@ func TestBuildResult(t *testing.T) {
 
 	for _, step := range steps {
 		t.Run(step.label, func(t *testing.T) {
-			_, err := emailvalidator.BuildResult(step.input)
+			res, err := emailvalidator.BuildResult(step.input)
 			if step.err == nil {
 				if err != nil {
 					t.Logf("Test should not have failed but did: %v", err)
@@ -148,6 +148,10 @@ func TestBuildResult(t *testing.T) {
 			} else if !errors.Is(err, step.err) {
 				t.Logf("Expected err to be %v but saw %v", step.err, err)
 				t.Fail()
+			}
+
+			if t.Failed() {
+				t.Log(res)
 			}
 		})
 	}
