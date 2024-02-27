@@ -483,9 +483,8 @@ func BuildResult(email string, opts ...OptFunc) (Result, error) {
 			err = fmt.Errorf("%w: position %d", ErrUnexpectedCharacter, i)
 		}
 
-		// if error, move on to next character
+		// if error, add to error list.
 		if err != nil {
-			// if error, add to error list.
 			errs = append(errs, err)
 		}
 
